@@ -3,11 +3,11 @@
   "description": "Edit messages locally.",
   "authors": [
     {
-      "name": "シグマ siguma",
+      "name": "siguma",
       "id": "737597276339437578"
     }
   ],
-  "main": "src/index.tsx",
+  "main": "index.js",
   "vendetta": {
     "icon": "ic_edit_24px"
   }
