@@ -1,38 +1,38 @@
-(function () {
-    var v = typeof vendetta !== "undefined" ? vendetta : (window.vendetta || window.bunny || {});
-    var metro = v.metro || {};
-    var common = metro.common || {};
-    var patcher = v.patcher || {};
-    var ui = v.ui || {};
-    var utils = v.utils || {};
+(() => {
+    const v = typeof vendetta !== "undefined" ? vendetta : (window.vendetta || window.bunny || {});
+    const metro = v.metro || {};
+    const common = metro.common || {};
+    const patcher = v.patcher || {};
+    const ui = v.ui || {};
+    const utils = v.utils || {};
 
-    var findByProps = metro.findByProps;
-    var findByStoreName = metro.findByStoreName;
-    var FluxDispatcher = common.FluxDispatcher;
-    var React = common.React;
-    var before = patcher.before;
-    var after = patcher.after;
-    var getAssetIDByName = ui.assets ? ui.assets.getAssetIDByName : null;
-    var Forms = ui.components ? ui.components.Forms : {};
-    var ActionSheetRow = (findByProps && findByProps("ActionSheetRow") && findByProps("ActionSheetRow").ActionSheetRow) || Forms.FormRow;
-    var findInReactTree = utils.findInReactTree;
+    const findByProps = metro.findByProps;
+    const findByStoreName = metro.findByStoreName;
+    const FluxDispatcher = common.FluxDispatcher;
+    const React = common.React;
+    const before = patcher.before;
+    const after = patcher.after;
+    const getAssetIDByName = ui.assets ? ui.assets.getAssetIDByName : null;
+    const Forms = ui.components ? ui.components.Forms : {};
+    const ActionSheetRow = (findByProps && findByProps("ActionSheetRow") && findByProps("ActionSheetRow").ActionSheetRow) || Forms.FormRow;
+    const findInReactTree = utils.findInReactTree;
 
-    var LazyActionSheet = findByProps ? findByProps("openLazy", "hideActionSheet") : null;
-    var MessageStore = findByStoreName ? findByStoreName("MessageStore") : null;
-    var UserStore = findByStoreName ? findByStoreName("UserStore") : null;
-    var Messages = findByProps ? (findByProps("editMessage", "deleteMessage") || findByProps("startEditMessage", "editMessage") || findByProps("sendMessage")) : null;
+    const LazyActionSheet = findByProps ? findByProps("openLazy", "hideActionSheet") : null;
+    const MessageStore = findByStoreName ? findByStoreName("MessageStore") : null;
+    const UserStore = findByStoreName ? findByStoreName("UserStore") : null;
+    const Messages = findByProps ? (findByProps("editMessage", "deleteMessage") || findByProps("startEditMessage", "editMessage") || findByProps("sendMessage")) : null;
 
-    var edits = new Map();
-    var isEditing = false;
-    var patches = [];
+    const edits = new Map();
+    let isEditing = false;
+    let patches = [];
 
-    var plugin = {
+    return {
         onLoad: function () {
             if (!LazyActionSheet) return;
 
             patches.push(before("openLazy", LazyActionSheet, function (args) {
-                var component = args[0];
-                var key = args[1];
+                const component = args[0];
+                const key = args[1];
                 var msg = args[2];
                 var message = msg && msg.message;
                 if (key !== "MessageLongPressActionSheet" || !message) return;
@@ -136,169 +136,4 @@
             edits.clear();
         }
     };
-
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = plugin;
-    }
-    return plugin;
 })();
-                    if (buttons.some((b) => b?.props?.label === "Edit Locally")) return;
-
-                    let position = buttons.findIndex((x) => {
-                        const lbl = x?.props?.label?.toLowerCase() || "";
-                        const msgProp = typeof x?.props?.message === "string" ? x.props.message.toLowerCase() : "";
-                        return lbl.includes("mark unread") || msgProp.includes("mark_unread");
-                    });
-
-                    if (position === -1) position = 0;
-
-                    const handleEdit = () => {
-                        isEditing = true;
-                        if (!edits.has(currentMessage.id)) {
-                            edits.set(currentMessage.id, JSON.parse(JSON.stringify(currentMessage)));
-                        }
-                        LazyActionSheet.hideActionSheet();
-
-                        if (Messages?.startEditMessage) {
-                            Messages.startEditMessage(currentMessage.channel_id, currentMessage.id, currentMessage.content);
-                        } else {
-                            FluxDispatcher.dispatch({
-                                type: "MESSAGE_START_EDIT",
-                                channelId: currentMessage.channel_id,
-                                messageId: currentMessage.id,
-                                content: currentMessage.content,
-                            });
-                        }
-                    };
-
-                    const iconId = getAssetIDByName("ic_edit_24px") ?? getAssetIDByName("edit");
-
-                    const iconElement = ActionSheetRow?.Icon ? React.createElement(ActionSheetRow.Icon, { source: iconId }) : null;
-                    const editButton = React.createElement(ActionSheetRow, {
-                        label: "Edit Locally",
-                        icon: iconElement,
-                        onPress: handleEdit
-                    });
-
-                    buttons.splice(position, 0, editButton);
-                });
-            });
-        }));
-
-        if (Messages) {
-            patches.push(before("editMessage", Messages, (args) => {
-                const [channelId, messageId, message] = args;
-
-                if (isEditing) {
-                    const baseMessage = edits.get(messageId);
-                    if (!baseMessage) return;
-
-                    FluxDispatcher.dispatch({
-                        type: "MESSAGE_UPDATE",
-                        message: {
-                            ...baseMessage,
-                            content: message.content,
-                            edited_timestamp: null,
-                        },
-                        otherPluginBypass: true,
-                    });
-                    return false;
-                }
-            }));
-
-            if (Messages.endEditMessage) {
-                patches.push(after("endEditMessage", Messages, () => {
-                    if (isEditing) {
-                        isEditing = false;
-                    }
-                }));
-            }
-        }
-    },
-
-    onUnload() {
-        patches.forEach((p) => p());
-        patches = [];
-        edits.clear();
-    }
-};
-                    if (buttons.some((b) => b?.props?.label === "Edit Locally")) return;
-
-                    let position = buttons.findIndex((x) => {
-                        const lbl = x?.props?.label?.toLowerCase() || "";
-                        const msgProp = typeof x?.props?.message === "string" ? x.props.message.toLowerCase() : "";
-                        return lbl.includes("mark unread") || msgProp.includes("mark_unread");
-                    });
-
-                    if (position === -1) position = 0;
-
-                    const handleEdit = () => {
-                        isEditing = true;
-                        if (!edits.has(currentMessage.id)) {
-                            edits.set(currentMessage.id, JSON.parse(JSON.stringify(currentMessage)));
-                        }
-                        LazyActionSheet.hideActionSheet();
-
-                        if (Messages?.startEditMessage) {
-                            Messages.startEditMessage(currentMessage.channel_id, currentMessage.id, currentMessage.content);
-                        } else {
-                            FluxDispatcher.dispatch({
-                                type: "MESSAGE_START_EDIT",
-                                channelId: currentMessage.channel_id,
-                                messageId: currentMessage.id,
-                                content: currentMessage.content,
-                            });
-                        }
-                    };
-
-                    const iconId = getAssetIDByName("ic_edit_24px") ?? getAssetIDByName("edit");
-
-                    const iconElement = ActionSheetRow.Icon ? React.createElement(ActionSheetRow.Icon, { source: iconId }) : null;
-                    const editButton = React.createElement(ActionSheetRow, {
-                        label: "Edit Locally",
-                        icon: iconElement,
-                        onPress: handleEdit
-                    });
-
-                    buttons.splice(position, 0, editButton);
-                });
-            });
-        }));
-
-        if (Messages) {
-            patches.push(before("editMessage", Messages, (args) => {
-                const [channelId, messageId, message] = args;
-
-                if (isEditing) {
-                    const baseMessage = edits.get(messageId);
-                    if (!baseMessage) return;
-
-                    FluxDispatcher.dispatch({
-                        type: "MESSAGE_UPDATE",
-                        message: {
-                            ...baseMessage,
-                            content: message.content,
-                            edited_timestamp: null,
-                        },
-                        otherPluginBypass: true,
-                    });
-                    return false;
-                }
-            }));
-
-            if (Messages.endEditMessage) {
-                patches.push(after("endEditMessage", Messages, () => {
-                    if (isEditing) {
-                        isEditing = false;
-                    }
-                }));
-            }
-        }
-    },
-
-    onUnload() {
-        patches.forEach((p) => p());
-        patches = [];
-        edits.clear();
-    }
-};
