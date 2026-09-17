@@ -65,6 +65,86 @@ export default {
 
                     const iconId = getAssetIDByName("ic_edit_24px") ?? getAssetIDByName("edit");
 
+                    const iconElement = ActionSheetRow?.Icon ? React.createElement(ActionSheetRow.Icon, { source: iconId }) : null;
+                    const editButton = React.createElement(ActionSheetRow, {
+                        label: "Edit Locally",
+                        icon: iconElement,
+                        onPress: handleEdit
+                    });
+
+                    buttons.splice(position, 0, editButton);
+                });
+            });
+        }));
+
+        if (Messages) {
+            patches.push(before("editMessage", Messages, (args) => {
+                const [channelId, messageId, message] = args;
+
+                if (isEditing) {
+                    const baseMessage = edits.get(messageId);
+                    if (!baseMessage) return;
+
+                    FluxDispatcher.dispatch({
+                        type: "MESSAGE_UPDATE",
+                        message: {
+                            ...baseMessage,
+                            content: message.content,
+                            edited_timestamp: null,
+                        },
+                        otherPluginBypass: true,
+                    });
+                    return false;
+                }
+            }));
+
+            if (Messages.endEditMessage) {
+                patches.push(after("endEditMessage", Messages, () => {
+                    if (isEditing) {
+                        isEditing = false;
+                    }
+                }));
+            }
+        }
+    },
+
+    onUnload() {
+        patches.forEach((p) => p());
+        patches = [];
+        edits.clear();
+    }
+};
+                    if (buttons.some((b) => b?.props?.label === "Edit Locally")) return;
+
+                    let position = buttons.findIndex((x) => {
+                        const lbl = x?.props?.label?.toLowerCase() || "";
+                        const msgProp = typeof x?.props?.message === "string" ? x.props.message.toLowerCase() : "";
+                        return lbl.includes("mark unread") || msgProp.includes("mark_unread");
+                    });
+
+                    if (position === -1) position = 0;
+
+                    const handleEdit = () => {
+                        isEditing = true;
+                        if (!edits.has(currentMessage.id)) {
+                            edits.set(currentMessage.id, JSON.parse(JSON.stringify(currentMessage)));
+                        }
+                        LazyActionSheet.hideActionSheet();
+
+                        if (Messages?.startEditMessage) {
+                            Messages.startEditMessage(currentMessage.channel_id, currentMessage.id, currentMessage.content);
+                        } else {
+                            FluxDispatcher.dispatch({
+                                type: "MESSAGE_START_EDIT",
+                                channelId: currentMessage.channel_id,
+                                messageId: currentMessage.id,
+                                content: currentMessage.content,
+                            });
+                        }
+                    };
+
+                    const iconId = getAssetIDByName("ic_edit_24px") ?? getAssetIDByName("edit");
+
                     const iconElement = ActionSheetRow.Icon ? React.createElement(ActionSheetRow.Icon, { source: iconId }) : null;
                     const editButton = React.createElement(ActionSheetRow, {
                         label: "Edit Locally",
