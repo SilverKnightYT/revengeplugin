@@ -1,1 +1,116 @@
-(function(f,n,h,a,M,S,A){"use strict";const p=n.findByProps("openLazy","hideActionSheet"),m=n.findByProps("ActionSheetRow")?.ActionSheetRow??S.Forms.FormRow,E=n.findByStoreName("MessageStore"),R=n.findByStoreName("UserStore"),l=n.findByProps("sendMessage","startEditMessage","editMessage"),r=new Map;let c=!1,s=[];var v={onLoad(){s.push(a.before("openLazy",p,function([i,y,g]){const t=g?.message;y!=="MessageLongPressActionSheet"||!t||i.then(function(d){const _=a.after("default",d,function(L,P){setTimeout(_,0);const u=A.findInReactTree(P,function(o){return o?.[0]?.type?.name==="ActionSheetRow"});if(!u)return;const B=R.getCurrentUser(),e=E.getMessage(t.channel_id,t.id)??t;if(e.author.id===B.id||u.some(function(o){return o?.props?.label==="Edit Locally"}))return;const N=Math.max(u.findIndex(function(o){return o.props.message===h.i18n.Messages.MARK_UNREAD}),0),b=function(){c=!0,r.has(e.id)||r.set(e.id,JSON.parse(JSON.stringify(e))),p.hideActionSheet(),l.startEditMessage(e.channel_id,e.id,e.content)};u.splice(N,0,React.createElement(m,{label:"Edit Locally",icon:React.createElement(m.Icon,{source:M.getAssetIDByName("ic_edit_24px")}),onPress:b}))})})})),s.push(a.before("editMessage",l,function(i){const[y,g,t]=i;if(c){const d=r.get(g);return d?(h.FluxDispatcher.dispatch({type:"MESSAGE_UPDATE",message:{...d,content:t.content,edited_timestamp:null},otherPluginBypass:!0}),!1):void 0}})),s.push(a.after("endEditMessage",l,function(){c&&(c=!1)}))},onUnload(){s.forEach(function(i){return i()}),s=[],r.clear()}};return f.default=v,Object.defineProperty(f,"__esModule",{value:!0}),f})({},vendetta.metro,vendetta.metro.common,vendetta.patcher,vendetta.ui.assets,vendetta.ui.components,vendetta.utils);
+import { findByProps, findByStoreName } from "@vendetta/metro";
+import { FluxDispatcher, React } from "@vendetta/metro/common";
+import { before, after } from "@vendetta/patcher";
+import { getAssetIDByName } from "@vendetta/ui/assets";
+import { Forms } from "@vendetta/ui/components";
+import { findInReactTree } from "@vendetta/utils";
+
+const LazyActionSheet = findByProps("openLazy", "hideActionSheet");
+const ActionSheetRow = findByProps("ActionSheetRow")?.ActionSheetRow ?? Forms.FormRow;
+const MessageStore = findByStoreName("MessageStore");
+const UserStore = findByStoreName("UserStore");
+const Messages = findByProps("editMessage", "deleteMessage") ?? findByProps("startEditMessage", "editMessage") ?? findByProps("sendMessage");
+
+const edits = new Map();
+let isEditing = false;
+let patches = [];
+
+export default {
+    onLoad() {
+        if (!LazyActionSheet) return;
+
+        patches.push(before("openLazy", LazyActionSheet, ([component, key, msg]) => {
+            const message = msg?.message;
+            if (key !== "MessageLongPressActionSheet" || !message) return;
+
+            component.then((instance) => {
+                const unpatch = after("default", instance, (_, res) => {
+                    setTimeout(unpatch, 0);
+
+                    const buttons = findInReactTree(res, (x) => Array.isArray(x) && x.some((b) => b?.props?.label || b?.props?.message));
+                    if (!buttons) return;
+
+                    const currentUser = UserStore.getCurrentUser();
+                    const currentMessage = MessageStore.getMessage(message.channel_id, message.id) ?? message;
+
+                    if (currentUser && currentMessage.author?.id === currentUser.id) return;
+                    if (buttons.some((b) => b?.props?.label === "Edit Locally")) return;
+
+                    let position = buttons.findIndex((x) => {
+                        const lbl = x?.props?.label?.toLowerCase() || "";
+                        const msgProp = typeof x?.props?.message === "string" ? x.props.message.toLowerCase() : "";
+                        return lbl.includes("mark unread") || msgProp.includes("mark_unread");
+                    });
+
+                    if (position === -1) position = 0;
+
+                    const handleEdit = () => {
+                        isEditing = true;
+                        if (!edits.has(currentMessage.id)) {
+                            edits.set(currentMessage.id, JSON.parse(JSON.stringify(currentMessage)));
+                        }
+                        LazyActionSheet.hideActionSheet();
+
+                        if (Messages?.startEditMessage) {
+                            Messages.startEditMessage(currentMessage.channel_id, currentMessage.id, currentMessage.content);
+                        } else {
+                            FluxDispatcher.dispatch({
+                                type: "MESSAGE_START_EDIT",
+                                channelId: currentMessage.channel_id,
+                                messageId: currentMessage.id,
+                                content: currentMessage.content,
+                            });
+                        }
+                    };
+
+                    const iconId = getAssetIDByName("ic_edit_24px") ?? getAssetIDByName("edit");
+
+                    const iconElement = ActionSheetRow.Icon ? React.createElement(ActionSheetRow.Icon, { source: iconId }) : null;
+                    const editButton = React.createElement(ActionSheetRow, {
+                        label: "Edit Locally",
+                        icon: iconElement,
+                        onPress: handleEdit
+                    });
+
+                    buttons.splice(position, 0, editButton);
+                });
+            });
+        }));
+
+        if (Messages) {
+            patches.push(before("editMessage", Messages, (args) => {
+                const [channelId, messageId, message] = args;
+
+                if (isEditing) {
+                    const baseMessage = edits.get(messageId);
+                    if (!baseMessage) return;
+
+                    FluxDispatcher.dispatch({
+                        type: "MESSAGE_UPDATE",
+                        message: {
+                            ...baseMessage,
+                            content: message.content,
+                            edited_timestamp: null,
+                        },
+                        otherPluginBypass: true,
+                    });
+                    return false;
+                }
+            }));
+
+            if (Messages.endEditMessage) {
+                patches.push(after("endEditMessage", Messages, () => {
+                    if (isEditing) {
+                        isEditing = false;
+                    }
+                }));
+            }
+        }
+    },
+
+    onUnload() {
+        patches.forEach((p) => p());
+        patches = [];
+        edits.clear();
+    }
+};
